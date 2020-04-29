@@ -1,0 +1,143 @@
+From 4859fc201b17a518baa6c1f33ba40a2a5a524340 Mon Sep 17 00:00:00 2001
+From: souravs17031999 <souravs_1999@rediffmail.com>
+Date: Wed, 29 Apr 2020 17:43:40 +0530
+Subject: [PATCH] create patch file
+
+---
+ datafeed/server3.py    |  4 ++--
+ src/DataManipulator.ts | 32 ++++++++++++++++++++++----------
+ src/Graph.tsx          | 32 +++++++++++++++++++-------------
+ 3 files changed, 43 insertions(+), 25 deletions(-)
+
+diff --git a/datafeed/server3.py b/datafeed/server3.py
+index 2de4e28..1d59866 100644
+--- a/datafeed/server3.py
++++ b/datafeed/server3.py
+@@ -202,7 +202,7 @@ def get(req_handler, routes):
+                 req_handler.wfile.write(bytes(data,  encoding = 'utf-8'))
+                 return
+ 
+-def run(routes, host = '0.0.0.0', port = 8080):
++def run(routes, host = '0.0.0.0', port = 8085):
+     """ Runs a class as a server whose methods have been decorated with
+         @route.
+     """
+@@ -215,7 +215,7 @@ def run(routes, host = '0.0.0.0', port = 8080):
+     thread = threading.Thread(target = server.serve_forever)
+     thread.daemon = True
+     thread.start()
+-    print ('HTTP server started on port 8080')
++    print ('HTTP server started on port 8085')
+     while True:
+         from time import sleep
+         sleep(1)
+diff --git a/src/DataManipulator.ts b/src/DataManipulator.ts
+index f6b15ff..f68cff2 100644
+--- a/src/DataManipulator.ts
++++ b/src/DataManipulator.ts
+@@ -1,20 +1,32 @@
+ import { ServerRespond } from './DataStreamer';
+ 
+ export interface Row {
+-  stock: string,
+-  top_ask_price: number,
+-  timestamp: Date,
++  price_abc: number,
++  price_def: number,
++  ratio: number,
++  timestamp: date,
++  upper_bound: number,
++  lower_bound: number,
++  trigger_alert: number | undefined,
+ }
+ 
+ 
+ export class DataManipulator {
+-  static generateRow(serverResponds: ServerRespond[]): Row[] {
+-    return serverResponds.map((el: any) => {
++  static generateRow(serverResponds: ServerRespond[]): Row {
++    const priceABC = (serverResponds[0].top_ask.price + serverResponds[0].top_bid.price) / 2;
++    const priceDEF = (serverResponds[1].top_ask.price + serverResponds[1].top_bid.price) / 2;
++    const ratio = priceABC / priceDEF;
++    const upperBound = 1 + 0.05;
++    const lowerBound = 1 - 0.05;
+       return {
+-        stock: el.stock,
+-        top_ask_price: el.top_ask && el.top_ask.price || 0,
+-        timestamp: el.timestamp,
++        price_abc: priceABC,
++        price_def: priceDEF,
++        ratio,
++        timestamp: serverResponds[0].timestamp > serverResponds[1].timestamp ?
++          serverResponds[0].timestamp : serverResponds[1].timestamp,
++        upper_bound: upperBound, // this is dynamic
++        lower_bound: lowerBound, // this is dynamic
++        trigger_alert: (ratio > upperBound || ratio < lowerBound) ? ratio : undefined, // this is the alert raised 
+       };
+-    })
++    }
+   }
+-}
+diff --git a/src/Graph.tsx b/src/Graph.tsx
+index 58fb997..9766afa 100644
+--- a/src/Graph.tsx
++++ b/src/Graph.tsx
+@@ -23,10 +23,13 @@ class Graph extends Component<IProps, {}> {
+     const elem = document.getElementsByTagName('perspective-viewer')[0] as unknown as PerspectiveViewerElement;
+ 
+     const schema = {
+-      stock: 'string',
+-      top_ask_price: 'float',
+-      top_bid_price: 'float',
+-      timestamp: 'date',
++      price_abc: 'float', // needed for calcuting the ratios
++      price_def: 'float',  // needed for calculating the ratios
++      ratio: 'float',   // this will show the ratio between stocks
++      timestamp: 'date',  // calcuation is w.r.t time
++      upper_bound: 'float',  // the upper threshold
++      lower_bound: 'float',  // the lower threshold
++      trigger_alert: 'float',  // the alert when the correlations starts become weak
+     };
+ 
+     if (window.perspective && window.perspective.worker()) {
+@@ -34,25 +37,28 @@ class Graph extends Component<IProps, {}> {
+     }
+     if (this.table) {
+       // Load the `table` in the `<perspective-viewer>` DOM reference.
++      // now we don't need column-pivots , as now we are tracking ratios
+       elem.load(this.table);
+-      elem.setAttribute('view', 'y_line');
+-      elem.setAttribute('column-pivots', '["stock"]');
++      elem.setAttribute('view', 'y_line'); // this is the view
+       elem.setAttribute('row-pivots', '["timestamp"]');
+-      elem.setAttribute('columns', '["top_ask_price"]');
++      elem.setAttribute('columns', '["ratio", "lower_bound", "upper_bound", "trigger_alert"]');
+       elem.setAttribute('aggregates', JSON.stringify({
+-        stock: 'distinctcount',
+-        top_ask_price: 'avg',
+-        top_bid_price: 'avg',
+-        timestamp: 'distinct count',
++        price_abc: 'float',
++        price_def: 'float',
++        ratio: 'float',
++        timestamp: 'date',
++        upper_bound: 'float',
++        lower_bound: 'float',
++        trigger_alert: 'float',
+       }));
+     }
+   }
+ 
+   componentDidUpdate() {
+     if (this.table) {
+-      this.table.update(
++      this.table.update([
+         DataManipulator.generateRow(this.props.data),
+-      );
++      ]);
+     }
+   }
+ }
+-- 
+2.20.1.windows.1
+
