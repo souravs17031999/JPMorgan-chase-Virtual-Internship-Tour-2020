@@ -1,0 +1,175 @@
+From 76cc7c02771841fab50638c687b21543a1fd916a Mon Sep 17 00:00:00 2001
+From: souravs17031999 <souravs_1999@rediffmail.com>
+Date: Wed, 29 Apr 2020 16:35:43 +0530
+Subject: [PATCH] create patch file
+
+---
+ 0001-create-patch-file.patch | 124 +++++++++++++++++++++++++++++++++++
+ src/Graph.tsx                |  11 ++--
+ 2 files changed, 129 insertions(+), 6 deletions(-)
+ create mode 100644 0001-create-patch-file.patch
+
+diff --git a/0001-create-patch-file.patch b/0001-create-patch-file.patch
+new file mode 100644
+index 0000000..db5bd0d
+--- /dev/null
++++ b/0001-create-patch-file.patch
+@@ -0,0 +1,124 @@
++From 9076a0423d0d0deabc80363de4978213607941b0 Mon Sep 17 00:00:00 2001
++From: souravs17031999 <souravs_1999@rediffmail.com>
++Date: Wed, 29 Apr 2020 16:07:59 +0530
++Subject: [PATCH] create patch file
++
++---
++ datafeed/server3.py |  4 ++--
++ src/App.tsx         | 25 +++++++++++++++++++------
++ src/Graph.tsx       | 12 +++++++++++-
++ 3 files changed, 32 insertions(+), 9 deletions(-)
++
++diff --git a/datafeed/server3.py b/datafeed/server3.py
++index 2de4e28..1d59866 100644
++--- a/datafeed/server3.py
+++++ b/datafeed/server3.py
++@@ -202,7 +202,7 @@ def get(req_handler, routes):
++                 req_handler.wfile.write(bytes(data,  encoding = 'utf-8'))
++                 return
++ 
++-def run(routes, host = '0.0.0.0', port = 8080):
+++def run(routes, host = '0.0.0.0', port = 8085):
++     """ Runs a class as a server whose methods have been decorated with
++         @route.
++     """
++@@ -215,7 +215,7 @@ def run(routes, host = '0.0.0.0', port = 8080):
++     thread = threading.Thread(target = server.serve_forever)
++     thread.daemon = True
++     thread.start()
++-    print ('HTTP server started on port 8080')
+++    print ('HTTP server started on port 8085')
++     while True:
++         from time import sleep
++         sleep(1)
++diff --git a/src/App.tsx b/src/App.tsx
++index 0728518..d92108e 100755
++--- a/src/App.tsx
+++++ b/src/App.tsx
++@@ -8,6 +8,7 @@ import './App.css';
++  */
++ interface IState {
++   data: ServerRespond[],
+++  showGraph: boolean,
++ }
++ 
++ /**
++@@ -22,6 +23,7 @@ class App extends Component<{}, IState> {
++       // data saves the server responds.
++       // We use this state to parse data down to the child element (Graph) as element property
++       data: [],
+++      showGraph: false,
++     };
++   }
++ 
++@@ -29,20 +31,31 @@ class App extends Component<{}, IState> {
++    * Render Graph react component with state.data parse as property data
++    */
++   renderGraph() {
+++    if (this.state.showGraph) {
++     return (<Graph data={this.state.data}/>)
+++    }
++   }
++ 
++   /**
++    * Get new data from server and update the state with the new data
++    */
++   getDataFromServer() {
++-    DataStreamer.getData((serverResponds: ServerRespond[]) => {
++-      // Update the state by creating a new array of data that consists of
++-      // Previous data in the state and the new data from server
++-      this.setState({ data: [...this.state.data, ...serverResponds] });
+++    let x = 0;
+++    const interval = setInterval(() => {
+++      DataStreamer.getData((serverResponds: ServerRespond[]) => {
+++        // Update the state by creating a new array of data that consists of
+++        // Previous data in the state and the new data from server
+++        this.setState( {
+++            data: serverResponds,
+++            showGraph: true,
+++        });
++     });
++-  }
++-
+++    x++;
+++    if (x > 1000) {
+++      clearInterval(interval);
+++    }
+++  }, 100);
+++}
++   /**
++    * Render the App react component
++    */
++diff --git a/src/Graph.tsx b/src/Graph.tsx
++index ec1430e..57f01a6 100644
++--- a/src/Graph.tsx
+++++ b/src/Graph.tsx
++@@ -14,7 +14,7 @@ interface IProps {
++  * Perspective library adds load to HTMLElement prototype.
++  * This interface acts as a wrapper for Typescript compiler.
++  */
++-interface PerspectiveViewerElement {
+++interface PerspectiveViewerElement extends HTMLElement {
++   load: (table: Table) => void,
++ }
++ 
++@@ -49,6 +49,16 @@ class Graph extends Component<IProps, {}> {
++ 
++       // Add more Perspective configurations here.
++       elem.load(this.table);
+++      elem.setAttribute('view', 'y_line'); // this is the view of data
+++      elem.setAttribute('column-pivots', '["stock"]'); // this allows use to distinguish stocks
+++      elem.setAttribute('row-pivots', '["timestamp"]'); // this maps each datapoint based on timestamp
+++      elem.setAttribute('columns', '["top_ask_price"]'); // it allows to only focus on a particular part of a stock's data
+++      // aggregates helps us to handle the duplicated data
+++      elem.setAttribute('aggregates',`
+++        {"stock" : "distinct_count",
+++          "top_ask_price":"avg",
+++          "top_bid_price":"avg",
+++          "timestamp":"distinct_count"}`);
++     }
++   }
++ 
++-- 
++2.20.1.windows.1
++
+diff --git a/src/Graph.tsx b/src/Graph.tsx
+index 57f01a6..d7cec0f 100644
+--- a/src/Graph.tsx
++++ b/src/Graph.tsx
+@@ -44,9 +44,12 @@ class Graph extends Component<IProps, {}> {
+     if (window.perspective && window.perspective.worker()) {
+       this.table = window.perspective.worker().table(schema);
+     }
++    if (window.perspective) {
++           this.table = window.perspective.worker().table(schema);
++    }
+     if (this.table) {
+       // Load the `table` in the `<perspective-viewer>` DOM reference.
+-
++      console.log('change table');
+       // Add more Perspective configurations here.
+       elem.load(this.table);
+       elem.setAttribute('view', 'y_line'); // this is the view of data
+@@ -54,11 +57,7 @@ class Graph extends Component<IProps, {}> {
+       elem.setAttribute('row-pivots', '["timestamp"]'); // this maps each datapoint based on timestamp
+       elem.setAttribute('columns', '["top_ask_price"]'); // it allows to only focus on a particular part of a stock's data
+       // aggregates helps us to handle the duplicated data
+-      elem.setAttribute('aggregates',`
+-        {"stock" : "distinct_count",
+-          "top_ask_price":"avg",
+-          "top_bid_price":"avg",
+-          "timestamp":"distinct_count"}`);
++      elem.setAttribute('aggregates', '{"stock":"distinct count","top_ask_price":"avg","top_bid_price":"avg","timestamp":"distinct count"}');
+     }
+   }
+ 
+-- 
+2.20.1.windows.1
+
